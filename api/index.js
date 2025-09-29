@@ -8,6 +8,7 @@ const customerRoutes = require('../routes/customerRoutes');
 const productRoutes = require('../routes/productRoutes');
 const saleRoutes = require('../routes/saleRoutes');
 const userRoutes = require('../routes/userRoutes');
+const dashboardRoutes = require('../routes/dashboardRoutes');
 // ... import all your other route files ...
 
 const app = express();
@@ -21,6 +22,7 @@ app.use('/api/customers', customerRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/sales', saleRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 // ... add all your other app.use() lines for your routes ...
 
 
