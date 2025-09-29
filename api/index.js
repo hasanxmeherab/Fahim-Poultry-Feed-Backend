@@ -1,49 +1,44 @@
+// Import necessary packages
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-require('dotenv').config();
+const transactionRoutes = require('./routes/transactionRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes');
+const reportRoutes = require('./routes/reportRoutes');
+require('dotenv').config(); // Load environment variables from .env file
 
-// Import all your route files
-const customerRoutes = require('../routes/customerRoutes');
-const productRoutes = require('../routes/productRoutes');
-const saleRoutes = require('../routes/saleRoutes');
-const userRoutes = require('../routes/userRoutes');
-// ... import all your other route files ...
+// Import routes
+const batchRoutes = require('./routes/batchRoutes');
+const customerRoutes = require('./routes/customerRoutes');
+const productRoutes = require('./routes/productRoutes');
+const saleRoutes = require('./routes/saleRoutes');
+const userRoutes = require('./routes/userRoutes');
+const wholesaleBuyerRoutes = require('./routes/wholesaleBuyerRoutes');
+const wholesaleProductRoutes = require('./routes/wholesaleProductRoutes');
 
+// Initialize the Express app
 const app = express();
+const PORT = process.env.PORT || 5000;
 
 // Middleware
-app.use(cors());
-app.use(express.json());
+app.use(cors()); // Enable Cross-Origin Resource Sharing
+app.use(express.json()); // Allow the server to accept JSON data in requests
 
 // API Routes
-app.use('/api/customers', customerRoutes);
+app.use('/api/batches', batchRoutes);
+app.use('/api/reports', reportRoutes);
+app.use('/api/customers', customerRoutes); // Use the customer routes for any URL starting with /api/customers
 app.use('/api/products', productRoutes);
 app.use('/api/sales', saleRoutes);
+app.use('/api/transactions', transactionRoutes);
 app.use('/api/users', userRoutes);
-// ... add all your other app.use() lines for your routes ...
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/wholesale-buyers', wholesaleBuyerRoutes);
+app.use('/api/wholesale-products', wholesaleProductRoutes);
+//console.log("--- Server is starting with the LATEST code definitions... ---");
+// Connect to MongoDB
+// Connect to MongoDB
+mongoose.connect(process.env.MONGO_URI);
 
-
-// --- NEW SERVERLESS DATABASE CONNECTION LOGIC ---
-
-// This function connects to the DB and caches the connection.
-// It's called on the first request and re-used on subsequent requests.
-const connectToDatabase = async () => {
-  if (mongoose.connection.readyState >= 1) {
-    return;
-  }
-  return mongoose.connect(process.env.MONGO_URI);
-};
-
-
-// This is the main handler Vercel will run
-module.exports = async (req, res) => {
-  try {
-    await connectToDatabase();
-    // Once connected, we pass the request to our Express app
-    return app(req, res);
-  } catch (error) {
-    console.error('Database connection failed:', error);
-    res.status(500).json({ error: 'Database connection failed.' });
-  }
-};
+// Export the app object for Vercel
+module.exports = app;
