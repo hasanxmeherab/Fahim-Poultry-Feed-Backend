@@ -55,13 +55,30 @@ const getTransactionsByBatch = async (req, res) => {
         let totalSoldInBatch = 0;
         let totalBoughtInBatch = 0;
         let totalChickensBought = 0;
+        const productSummary = {};
         allBatchTransactions.forEach(t => {
-            if (t.type === 'SALE') totalSoldInBatch += t.amount;
+            if (t.type === 'SALE'){
+            
+                totalSoldInBatch += t.amount;
+                t.items.forEach(item => {
+                    if (productSummary[item.name]) {
+                        productSummary[item.name] += item.quantity;
+                    } else {
+                        productSummary[item.name] = item.quantity;
+                    }
+                });
+            }
+
             if (t.type === 'BUY_BACK') {
                 totalBoughtInBatch += t.amount;
                 totalChickensBought += t.buyBackQuantity || 0;
             }
         });
+
+        // Convert summary object to an array for the frontend
+        const productSummaryArray = Object.keys(productSummary)
+            .map(name => ({ name, quantity: productSummary[name] }))
+            .sort((a, b) => b.quantity - a.quantity); // Sort by quantity descending
 
         res.status(200).json({ 
             transactions,
@@ -69,7 +86,8 @@ const getTransactionsByBatch = async (req, res) => {
             totalPages: Math.ceil(count / limit),
             totalSoldInBatch, 
             totalBoughtInBatch,
-            totalChickensBought
+            totalChickensBought,
+            productSummary: productSummaryArray
         });
     } catch (error) {
         console.error("ERROR in getTransactionsByBatch:", error);

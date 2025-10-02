@@ -1,5 +1,6 @@
 const Batch = require('../models/batchModel');
 const Customer = require('../models/customerModel');
+const Transaction = require('../models/transactionModel');
 
 // @desc    Start a new batch for a customer
 const startNewBatch = async (req, res) => {
@@ -45,6 +46,101 @@ const getBatchesForCustomer = async (req, res) => {
         res.status(200).json(batches);
     } catch (error) {
         res.status(500).json({ message: 'Server error fetching batches' });
+    }
+};
+
+// --- NEW FUNCTION: ADD DISCOUNT ---
+const addDiscount = async (req, res) => {
+    const { id } = req.params; // Batch ID
+    const { description, amount } = req.body;
+
+    if (!description || !amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+        return res.status(400).json({ message: 'A valid description and positive amount are required.' });
+    }
+
+    try {
+        const batch = await Batch.findById(id).populate('customer');
+        if (!batch) {
+            return res.status(404).json({ message: 'Batch not found.' });
+        }
+        if (batch.status !== 'Active') {
+            return res.status(400).json({ message: 'Discounts can only be added to active batches.' });
+        }
+
+        const customer = batch.customer;
+        const discountAmount = parseFloat(amount);
+
+        // Add discount to the batch's array
+        batch.discounts.push({ description, amount: discountAmount });
+        
+        // A discount is a credit, so it INCREASES the customer's balance (makes it less negative)
+        const balanceBefore = customer.balance;
+        customer.balance += discountAmount;
+        
+        // Create a transaction record for the discount
+        await Transaction.create({
+            type: 'DISCOUNT',
+            customer: customer._id,
+            batch: batch._id,
+            amount: discountAmount,
+            balanceBefore: balanceBefore,
+            balanceAfter: customer.balance,
+            notes: `Discount applied: ${description} (TK ${discountAmount.toFixed(2)})`
+        });
+
+        await customer.save();
+        const updatedBatch = await batch.save();
+
+        res.status(200).json(updatedBatch);
+
+    } catch (error) {
+        console.error("ADD DISCOUNT ERROR:", error);
+        res.status(500).json({ message: 'Server error while adding discount.' });
+    }
+};
+
+// --- NEW FUNCTION: REMOVE DISCOUNT ---
+const removeDiscount = async (req, res) => {
+    const { id, discountId } = req.params; // Batch ID and Discount ID
+
+    try {
+        const batch = await Batch.findById(id).populate('customer');
+        if (!batch) return res.status(404).json({ message: 'Batch not found.' });
+        if (batch.status !== 'Active') return res.status(400).json({ message: 'Discounts can only be removed from active batches.' });
+        
+        const customer = batch.customer;
+        const discountToRemove = batch.discounts.id(discountId);
+
+        if (!discountToRemove) return res.status(404).json({ message: 'Discount not found in this batch.' });
+        
+        const discountAmount = discountToRemove.amount;
+
+        // Revert customer balance by DECREASING it
+        const balanceBefore = customer.balance;
+        customer.balance -= discountAmount;
+
+        // Create a transaction record for the removal
+        await Transaction.create({
+            type: 'DISCOUNT_REMOVAL',
+            customer: customer._id,
+            batch: batch._id,
+            amount: -discountAmount, // Log as a negative amount
+            balanceBefore: balanceBefore,
+            balanceAfter: customer.balance,
+            notes: `Discount removed: ${discountToRemove.description} (TK ${discountAmount.toFixed(2)})`
+        });
+
+        // Remove the discount from the batch's array
+        await batch.discounts.pull({ _id: discountId });
+        
+        await customer.save();
+        const updatedBatch = await batch.save();
+
+        res.status(200).json(updatedBatch);
+
+    } catch (error) {
+        console.error("REMOVE DISCOUNT ERROR:", error);
+        res.status(500).json({ message: 'Server error while removing discount.' });
     }
 };
 
@@ -99,4 +195,10 @@ const buyBackAndEndBatch = async (req, res) => {
     }
 };
 
-module.exports = { startNewBatch, getBatchesForCustomer, buyBackAndEndBatch };
+module.exports = { 
+    startNewBatch, 
+    getBatchesForCustomer, 
+    buyBackAndEndBatch,
+    addDiscount,      
+    removeDiscount   
+};

@@ -6,7 +6,7 @@ const transactionSchema = new Schema({
     type: {
         type: String,
         required: true,
-        enum: ['SALE', 'DEPOSIT', 'WITHDRAWAL', 'STOCK_ADD', 'STOCK_REMOVE', 'BUY_BACK', 'WHOLESALE_SALE']
+        enum: ['SALE', 'DEPOSIT', 'WITHDRAWAL', 'STOCK_ADD', 'STOCK_REMOVE', 'BUY_BACK', 'WHOLESALE_SALE', 'DISCOUNT', 'DISCOUNT_REMOVAL']
     },
     notes: {
         type: String,
@@ -17,6 +17,10 @@ const transactionSchema = new Schema({
         type: String,
         enum: ['Credit', 'Cash'],
         default: 'Credit'
+    },
+
+    randomCustomerName: {
+        type: String,
     },
 
     

@@ -5,71 +5,98 @@ const Transaction = require('../models/transactionModel');
 const Batch = require('../models/batchModel');
 const WholesaleBuyer = require('../models/wholesaleBuyerModel');
 
-// @desc   Create a new sale for a regular customer
-// @route  POST /api/sales
+// @desc   Create a new sale
+// @route  POST /api/sales
 const createSale = async (req, res) => {
-    // NEW: Get isCashPayment from the request body
-    const { customerId, items, isCashPayment } = req.body;
+const { customerId, items, isCashPayment, isRandomCustomer, randomCustomerName } = req.body;
+    if (!items || items.length === 0) {
+        return res.status(400).json({ error: 'At least one item is required.' });
+    }
 
-    if (!customerId || !items || items.length === 0) {
-        return res.status(400).json({ error: 'Customer ID and at least one item are required.' });
-    }
+    if (!isRandomCustomer && !customerId) {
+        return res.status(400).json({ error: 'Customer ID is required for non-random sales.' });
+    }
+    
+    // Random customer sales must be cash sales.
+    if (isRandomCustomer && !isCashPayment) {
+        return res.status(400).json({ error: 'Random customer sales must be paid in cash.' });
+    }
 
-    try {
-        const customer = await Customer.findById(customerId);
-        if (!customer) return res.status(404).json({ error: 'Customer not found.' });
-        
-        const activeBatch = await Batch.findOne({ customer: customerId, status: 'Active' });
-        
-        let totalAmount = 0;
-        const saleItems = [];
-        const productUpdates = [];
+    try {
+        let totalAmount = 0;
+        const saleItems = [];
+        const productUpdates = [];
 
-        for (const item of items) {
-            const product = await Product.findById(item.productId);
-            if (!product) return res.status(404).json({ error: `Product not found.` });
-            if (product.quantity < item.quantity) return res.status(400).json({ error: `Not enough stock for ${product.name}.` });
-            totalAmount += product.price * item.quantity;
-            saleItems.push({ product: item.productId, quantity: item.quantity, price: product.price, name: product.name });
-            productUpdates.push({ updateOne: { filter: { _id: item.productId }, update: { $inc: { quantity: -item.quantity } } } });
-        }
+        for (const item of items) {
+            const product = await Product.findById(item.productId);
+            if (!product) return res.status(404).json({ error: `Product not found.` });
+            if (product.quantity < item.quantity) return res.status(400).json({ error: `Not enough stock for ${product.name}.` });
 
-        const balanceBefore = customer.balance;
-        let balanceAfter = customer.balance;
-
-        // --- NEW: Conditional logic for updating balance ---
-        if (!isCashPayment) {
-            customer.balance -= totalAmount;
-            balanceAfter = customer.balance;
-            await customer.save();
+            totalAmount += product.price * item.quantity;
+            saleItems.push({ product: item.productId, quantity: item.quantity, price: product.price, name: product.name });
+            productUpdates.push({ updateOne: { filter: { _id: item.productId }, update: { $inc: { quantity: -item.quantity } } } });
         }
 
-        await Product.bulkWrite(productUpdates);
+        await Product.bulkWrite(productUpdates);
 
-        const sale = await Sale.create({
-         customer: customerId,
-        items: saleItems,
-        totalAmount, // <-- The required field
-        batch: activeBatch ? activeBatch._id : null,
-    });
-        await Transaction.create({
-            type: 'SALE',
-            customer: customerId,
-            amount: totalAmount,
-            items: saleItems,
-            balanceBefore,
-            balanceAfter, // Use the potentially unchanged balance
-            paymentMethod: isCashPayment ? 'Cash' : 'Credit', // Record the payment method
-            notes: `Sale of ${saleItems.length} item(s) to ${customer.name}`,
-            batch: activeBatch ? activeBatch._id : null,
-        });
+        let sale;
+        // Logic for registered customers
+        if (!isRandomCustomer) {
+            const customer = await Customer.findById(customerId);
+            if (!customer) return res.status(404).json({ error: 'Customer not found.' });
 
-        res.status(201).json(sale);
+            const activeBatch = await Batch.findOne({ customer: customerId, status: 'Active' });
+            const balanceBefore = customer.balance;
+            let balanceAfter = customer.balance;
 
-    } catch (error) {
-        res.status(500).json({ error: 'Server error during sale processing: ' + error.message });
-    }
+            if (!isCashPayment) {
+                customer.balance -= totalAmount;
+                balanceAfter = customer.balance;
+                await customer.save();
+            }
+
+            sale = await Sale.create({
+                customer: customerId,
+                items: saleItems,
+                totalAmount,
+                batch: activeBatch ? activeBatch._id : null,
+            });
+
+            await Transaction.create({
+                type: 'SALE',
+                customer: customerId,
+                amount: totalAmount,
+                items: saleItems,
+                balanceBefore,
+                balanceAfter,
+                paymentMethod: isCashPayment ? 'Cash' : 'Credit',
+                notes: `Sale of ${saleItems.length} item(s) to ${customer.name}`,
+                batch: activeBatch ? activeBatch._id : null,
+            });
+        } else {
+            // Logic for random customers
+            sale = await Sale.create({
+                items: saleItems,
+                totalAmount,
+            });
+
+            await Transaction.create({
+                type: 'SALE',
+                amount: totalAmount,
+                items: saleItems,
+                paymentMethod: 'Cash',
+                randomCustomerName: randomCustomerName, // <-- ADD THIS LINE
+                notes: `Cash sale to ${randomCustomerName || 'a random customer'}`, // <-- MODIFY THIS LINE
+            });
+        }
+
+        res.status(201).json(sale);
+
+    } catch (error) {
+        res.status(500).json({ error: 'Server error during sale processing: ' + error.message });
+    }
 };
+
 
 // @desc   Create a new sale for a wholesale buyer
 // @route  POST /api/sales/wholesale
@@ -138,9 +165,9 @@ const getSales = async (req, res) => {
     }
 };
 
-// This export object now contains all three functions
 module.exports = { 
     createSale, 
     getSales, 
     createWholesaleSale 
 };
+

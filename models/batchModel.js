@@ -33,6 +33,18 @@ const batchSchema = new Schema({
     endingBalance: {
         type: Number,
     },
+
+    discounts: [{
+        description: {
+            type: String,
+            required: true
+        },
+        amount: {
+            type: Number,
+            required: true
+        }
+    }]
+
 }, { timestamps: true });
 
 module.exports = mongoose.model('Batch', batchSchema);

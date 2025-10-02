@@ -263,21 +263,22 @@ const buyFromCustomer = async (req, res) => {
         await customer.save();
 
         // Log the detailed buy-back, now including the referenceName
-        await Transaction.create({
+        const newTransaction = await Transaction.create({
             type: 'BUY_BACK',
             customer: customer._id,
             amount: totalAmount,
             buyBackQuantity: quantity,
             buyBackWeight: weight,
             buyBackPricePerKg: pricePerKg,
-            referenceName: referenceName, // <-- Save the new field
+            referenceName: referenceName,
             balanceBefore: balanceBefore,
             balanceAfter: customer.balance,
             notes: `Bought back ${quantity} chickens (${weight}kg @ TK ${pricePerKg}/kg)`,
             batch: activeBatch._id,
         });
-
-        res.status(200).json({ message: 'Buy back transaction recorded successfully' });
+        
+        // Return the full transaction object
+        res.status(200).json(newTransaction);
 
     } catch (error) {
         console.error("BUY_FROM_CUSTOMER ERROR:", error);

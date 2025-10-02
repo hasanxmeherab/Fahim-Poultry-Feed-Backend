@@ -5,7 +5,7 @@ const saleSchema = new Schema({
   customer: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Customer', // This links the sale to a specific customer
-    required: true,
+    required: false,
   },
   items: [{
     product: {
