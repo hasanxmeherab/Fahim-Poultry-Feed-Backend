@@ -10,7 +10,9 @@ const getTransactions = async (req, res) => {
             .limit(limit)
             .skip(limit * (page - 1))
             .populate('customer', 'name')
-            .populate('product', 'name');
+            .populate('product', 'name')
+            .populate('wholesaleBuyer', 'name');
+
         res.status(200).json({ 
             transactions, 
             page, 
